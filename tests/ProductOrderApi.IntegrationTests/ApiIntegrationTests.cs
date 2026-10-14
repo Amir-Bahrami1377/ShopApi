@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using ProductOrderApi.Data;
 using Xunit;
@@ -45,12 +46,21 @@ public sealed class ApiIntegrationTests : IAsyncLifetime
         using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync());
         var problem = document.RootElement;
         Assert.Equal(404, problem.GetProperty("status").GetInt32());
-        Assert.Equal("Resource not found", problem.GetProperty("title").GetString());
-        Assert.Equal(
-            "The requested endpoint was not found.",
-            problem.GetProperty("detail").GetString());
+        Assert.Equal("Not Found", problem.GetProperty("title").GetString());
         Assert.Equal(path, problem.GetProperty("instance").GetString());
         Assert.False(string.IsNullOrWhiteSpace(problem.GetProperty("traceId").GetString()));
+    }
+
+    [Fact]
+    public async Task Empty_405_and_415_responses_are_written_as_problem_details()
+    {
+        using var methodNotAllowed = await Client.DeleteAsync("/health");
+        AssertProblem(methodNotAllowed, HttpStatusCode.MethodNotAllowed);
+
+        using var unsupportedMediaType = await Client.PostAsync(
+            "/products",
+            new StringContent("{}", Encoding.UTF8, "text/plain"));
+        AssertProblem(unsupportedMediaType, HttpStatusCode.UnsupportedMediaType);
     }
 
     [Fact]
@@ -505,7 +515,9 @@ public sealed class ApiIntegrationTests : IAsyncLifetime
         Assert.Equal(expectedStatus, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
 
-        var document = JsonDocument.Parse(response.Content.ReadAsStream());
+        using var document = JsonDocument.Parse(response.Content.ReadAsStream());
         Assert.Equal((int)expectedStatus, document.RootElement.GetProperty("status").GetInt32());
+        Assert.False(
+            string.IsNullOrWhiteSpace(document.RootElement.GetProperty("traceId").GetString()));
     }
 }

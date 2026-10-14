@@ -4,20 +4,17 @@ using ProductOrderApi.Errors;
 
 namespace ProductOrderApi.Services;
 
-public sealed class DatabaseHealthService(
-    AppDbContext dbContext,
-    ILogger<DatabaseHealthService> logger)
+public sealed class DatabaseHealthService(AppDbContext dbContext)
 {
     public async Task EnsureHealthyAsync(CancellationToken cancellationToken)
     {
+        Exception? connectionException = null;
         try
         {
             if (await dbContext.Database.CanConnectAsync(cancellationToken))
             {
                 return;
             }
-
-            logger.LogWarning("Database connectivity health check failed.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -25,9 +22,9 @@ public sealed class DatabaseHealthService(
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Database connectivity health check failed.");
+            connectionException = exception;
         }
 
-        throw AppException.ServiceUnavailable("The database is unavailable.");
+        throw AppException.ServiceUnavailable("The database is unavailable.", connectionException);
     }
 }

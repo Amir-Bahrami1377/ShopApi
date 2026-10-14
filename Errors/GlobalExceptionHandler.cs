@@ -22,6 +22,19 @@ public sealed class GlobalExceptionHandler(
         ProblemDetails details;
         if (exception is AppException appException)
         {
+            var traceId = Activity.Current?.Id ?? httpContext.TraceIdentifier;
+            logger.Log(
+                appException.StatusCode >= StatusCodes.Status500InternalServerError
+                    ? LogLevel.Warning
+                    : LogLevel.Information,
+                appException.InnerException,
+                "Handled application error {StatusCode} {Title} for {RequestMethod} {RequestPath} (TraceId: {TraceId}).",
+                appException.StatusCode,
+                appException.Title,
+                httpContext.Request.Method,
+                httpContext.Request.Path,
+                traceId);
+
             details = appException.Errors is null
                 ? new ProblemDetails()
                 : new ValidationProblemDetails(appException.Errors.ToDictionary(pair => pair.Key, pair => pair.Value));

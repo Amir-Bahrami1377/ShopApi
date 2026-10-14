@@ -123,8 +123,9 @@ public sealed class OrderService(
                 return replay;
             }
 
-            logger.LogError(exception, "An idempotency unique-key collision occurred but the winning order was not found.");
-            throw AppException.Conflict("A concurrent request is using the same Idempotency-Key. Retry the request.");
+            throw AppException.Conflict(
+                "A concurrent request is using the same Idempotency-Key. Retry the request.",
+                exception);
         }
         catch
         {
@@ -187,17 +188,15 @@ public sealed class OrderService(
             logger.LogInformation("Payment for order {OrderId} was interrupted because the client disconnected.", id);
             throw;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException exception)
         {
             await ResetPaymentStatusAsync(id);
-            logger.LogWarning("Payment for order {OrderId} timed out.", id);
-            throw AppException.PaymentTimeout();
+            throw AppException.PaymentTimeout(exception);
         }
         catch (Exception exception)
         {
             await ResetPaymentStatusAsync(id);
-            logger.LogWarning(exception, "Payment provider threw while processing order {OrderId}.", id);
-            throw AppException.PaymentProviderError();
+            throw AppException.PaymentProviderError(exception);
         }
 
         switch (result.Outcome)
@@ -219,14 +218,12 @@ public sealed class OrderService(
 
             case PaymentOutcome.Declined:
                 await ResetPaymentStatusAsync(id);
-                logger.LogInformation("Payment for order {OrderId} was declined: {Reason}", id, result.Error);
-                throw AppException.PaymentDeclined();
+                throw AppException.PaymentDeclined(result.Error);
 
             case PaymentOutcome.Error:
             default:
                 await ResetPaymentStatusAsync(id);
-                logger.LogWarning("Payment provider returned an error for order {OrderId}: {ProviderError}", id, result.Error);
-                throw AppException.PaymentProviderError();
+                throw AppException.PaymentProviderError(diagnosticReason: result.Error);
         }
     }
 

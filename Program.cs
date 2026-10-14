@@ -80,26 +80,7 @@ builder.Services.AddSingleton<IPaymentService, FakePaymentService>();
 var app = builder.Build();
 
 app.UseExceptionHandler();
-app.UseStatusCodePages(async statusCodeContext =>
-{
-    var httpContext = statusCodeContext.HttpContext;
-    if (httpContext.Response.StatusCode != StatusCodes.Status404NotFound)
-    {
-        return;
-    }
-
-    var problemDetailsService = httpContext.RequestServices.GetRequiredService<IProblemDetailsService>();
-    await problemDetailsService.WriteAsync(new ProblemDetailsContext
-    {
-        HttpContext = httpContext,
-        ProblemDetails = new ProblemDetails
-        {
-            Status = StatusCodes.Status404NotFound,
-            Title = "Resource not found",
-            Detail = "The requested endpoint was not found."
-        }
-    });
-});
+app.UseStatusCodePages();
 app.MapControllers();
 
 if (app.Environment.IsDevelopment())
